@@ -1,0 +1,56 @@
+---
+title: "PMI project"
+author: "Sun Huiyuan"
+date: "24 Jan 2018"
+output: html_document
+---
+
+```{r setup and load library, include=FALSE, warning=FALSE,message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+```
+## Load data and split data
+```{r Data exporatory}
+data<-read.csv("pml-training.csv")
+set.seed(550)
+trainid<-createDataPartition(data$classe,p=0.7,list=FALSE)
+training<-data[trainid,]
+testing<-data[-trainid,]
+```
+## Dimension reduction
+1. Remove near zero variables
+2. Remove variables with high correlation
+```{r Dimension reduction}
+training[is.na(training)]<--999
+nzv<-nearZeroVar(training,saveMetrics = TRUE)
+reducedtraining<-training[,!nzv$nzv]
+#remove id variables
+reducedtraining<-reducedtraining[,c(-1,-2,-5)]
+#remove variables with high correlation
+fc<-findCorrelation(cor(reducedtraining[,-56],use="pairwise.complete.obs"),cutoff = 0.7)
+reducedtraining<-reducedtraining[,-fc]
+#remove time related variables
+reducedtraining<-reducedtraining[,c(-1,-2,-3)]
+```
+## PreProcess with PCA
+```{r PreProcess}
+preProc<-preProcess(reducedtraining[,-30],method="pca")
+trainPC<-predict(preProc,reducedtraining[,-30])
+trainPC$classe<-reducedtraining$classe
+```
+## Model fit with RandomForest method       
+```{r Modelfit}
+set.seed(123)
+modelfitrf<-train(classe~.,data=trainPC,method="rf")
+```
+## Bootstrapped cross validation Result      
+```{r CV Result}
+print(modelfitrf)
+```
+With Bootstrpped cross validation method, the estimated out of sample accuracy is `r max(modelfitrf$results$Accuracy)`.      
+## Validate with test data
+```{r final validation}
+testPC<-predict(preProc,testing)
+confusionMatrix(testing$classe,predict(modelfitrf,testPC))
+```
+
